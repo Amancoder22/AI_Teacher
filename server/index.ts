@@ -59,12 +59,42 @@ app.use((req, res, next) => {
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
+  
+  // Use an async wrapper to handle potential errors with server.listen
+  const startServer = async () => {
+    try {
+      // First attempt with reusePort option (works on Replit)
+      server.listen({
+        port,
+        host: "0.0.0.0",
+        reusePort: true,
+      }, () => {
+        log(`serving on port ${port} with reusePort enabled`);
+      });
+      
+      // Add error handler
+      server.on('error', (err) => {
+        if (err.code === 'ENOTSUP' || err.code === 'EADDRINUSE') {
+          log(`Error with reusePort: ${err.message}, trying alternative configuration`);
+          // Try without reusePort if it fails
+          server.close();
+          server.listen(port, "0.0.0.0", () => {
+            log(`serving on port ${port} with standard configuration`);
+          });
+        } else {
+          log(`Server error: ${err.message}`);
+        }
+      });
+    } catch (err) {
+      // Fallback for environments that don't support reusePort
+      log(`Error starting server: ${err}`);
+      log("Falling back to standard server configuration");
+      server.listen(port, "0.0.0.0", () => {
+        log(`serving on port ${port}`);
+      });
+    }
+  };
+  
+  startServer();
 })();
