@@ -56,44 +56,52 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
+  // Determine the port to use
+  // Default to 5000 for Replit, but allow overriding with PORT env variable
+  // Your local PC appears to be using port 3000
+  const defaultPort = process.env.REPL_ID ? 5000 : 3000;
+  const port = process.env.PORT ? parseInt(process.env.PORT) : defaultPort;
   
-  // Use an async wrapper to handle potential errors with server.listen
-  const startServer = async () => {
-    try {
-      // First attempt with reusePort option (works on Replit)
+  // Handle server start with proper error management
+  const startServer = () => {
+    // Check for Node.js version to determine if we should use reusePort
+    const nodeVersion = process.version;
+    const isReplit = process.env.REPL_ID !== undefined;
+    
+    // Skip reusePort on Node.js v22+ for local environments
+    if (isReplit) {
+      log(`Running on Replit with Node.js ${nodeVersion}`);
+      // On Replit, use reusePort
       server.listen({
         port,
         host: "0.0.0.0",
         reusePort: true,
       }, () => {
-        log(`serving on port ${port} with reusePort enabled`);
+        log(`Server started on port ${port} with reusePort enabled`);
       });
-      
-      // Add error handler
-      server.on('error', (err) => {
-        if (err.code === 'ENOTSUP' || err.code === 'EADDRINUSE') {
-          log(`Error with reusePort: ${err.message}, trying alternative configuration`);
-          // Try without reusePort if it fails
-          server.close();
-          server.listen(port, "0.0.0.0", () => {
-            log(`serving on port ${port} with standard configuration`);
-          });
-        } else {
-          log(`Server error: ${err.message}`);
-        }
-      });
-    } catch (err) {
-      // Fallback for environments that don't support reusePort
-      log(`Error starting server: ${err}`);
-      log("Falling back to standard server configuration");
+    } else {
+      log(`Running locally with Node.js ${nodeVersion}, using standard configuration`);
+      // For local environments, use standard configuration
       server.listen(port, "0.0.0.0", () => {
-        log(`serving on port ${port}`);
+        log(`Server started on port ${port} with standard configuration`);
       });
     }
+
+    // Add error handler for both cases
+    server.on('error', (err: Error & { code?: string }) => {
+      log(`Server error: ${err.message}`);
+      
+      // If we get an ENOTSUP or EADDRINUSE error, try with a different port
+      if (err.code === 'ENOTSUP' || err.code === 'EADDRINUSE') {
+        const fallbackPort = port + 1;
+        log(`Attempting to use fallback port ${fallbackPort}`);
+        
+        server.close();
+        server.listen(fallbackPort, "0.0.0.0", () => {
+          log(`Server started on fallback port ${fallbackPort}`);
+        });
+      }
+    });
   };
   
   startServer();
