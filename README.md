@@ -21,7 +21,7 @@ An interactive educational platform that generates personalized lectures using G
 
 1. Clone the repository:
 ```bash
-git clone [your-repository-url]
+git clone https://github.com/Amancoder22/AI_Teacher
 cd AILearningCompanion
 ```
 
